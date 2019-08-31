@@ -1,71 +1,57 @@
 /*
- * CSS Parser Project
+ * Copyright (C) 1999-2019 David Schweinsberg.
  *
- * Copyright (C) 1999-2014 David Schweinsberg.  All rights reserved.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * This library is free software; you can redistribute it and/or
- * modify it under the terms of the GNU Lesser General Public
- * License as published by the Free Software Foundation; either
- * version 2 of the License, or (at your option) any later version.
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public
- * License along with this library; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
- * To contact the authors of the library:
- *
- * http://cssparser.sourceforge.net/
- * mailto:davidsch@users.sourceforge.net
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
+
 package net.sourceforge.cssparser.browser;
 
 import com.steadystate.css.parser.CSSOMParser;
-import java.awt.BorderLayout;
-import java.awt.Cursor;
-import java.awt.Dimension;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.Reader;
-import javax.swing.JFileChooser;
-import javax.swing.JFrame;
-import javax.swing.JMenu;
-import javax.swing.JMenuBar;
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JTree;
-import javax.swing.ToolTipManager;
-import javax.swing.filechooser.FileFilter;
-import javax.swing.tree.DefaultTreeModel;
-import javax.swing.tree.TreeModel;
+import com.steadystate.css.parser.SACParserCSS3;
 import org.w3c.css.sac.CSSException;
 import org.w3c.css.sac.InputSource;
 import org.w3c.dom.css.CSSStyleSheet;
 
+import javax.swing.*;
+import javax.swing.filechooser.FileFilter;
+import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreeModel;
+import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.io.*;
+
 /**
- * @author <a href="mailto:davidsch@users.sourceforge.net">David
- * Schweinsberg</a>
+ * @author David Schweinsberg
  */
 public class StyleBrowser {
 
     private final JFrame frame_;
     private final JTree tree_;
     private DefaultTreeModel treeModel_;
+    private boolean macPlatform_;
 
     public StyleBrowser() {
+
+        if (System.getProperty("os.name").equals("Mac OS X")) {
+            macPlatform_ = true;
+
+            // Before loading Swing, set macOS-specific properties
+            System.setProperty("apple.awt.application.name", "Style Browser");
+            System.setProperty("apple.laf.useScreenMenuBar", "true");
+        } else {
+            macPlatform_ = false;
+        }
+
         frame_ = new JFrame("Style Browser");
 
         JPanel panel = new JPanel(true);
@@ -106,6 +92,9 @@ public class StyleBrowser {
     }
 
     private JMenuBar createMenuBar() {
+        if (macPlatform_) {
+            registerForMacOSXEvents();
+        }
         JMenu menu;
         JMenuBar menuBar = new JMenuBar();
         JMenuItem menuItem;
@@ -114,37 +103,20 @@ public class StyleBrowser {
         menuBar.add(menu);
 
         menuItem = menu.add(new JMenuItem("Open..."));
-        menuItem.addActionListener(
-                new ActionListener() {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        openStyleSheet();
-                    }
-                }
-        );
+        menuItem.addActionListener(e -> openStyleSheet());
 
-        menuItem = menu.add(new JMenuItem("Exit"));
-        menuItem.addActionListener(
-                new ActionListener() {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        System.exit(0);
-                    }
-                }
-        );
+        if (!macPlatform_) {
+            menuItem = menu.add(new JMenuItem("Exit"));
+            menuItem.addActionListener(e -> System.exit(0));
+        }
 
         menu = new JMenu("Help");
         menuBar.add(menu);
 
-        menuItem = menu.add(new JMenuItem("About"));
-        menuItem.addActionListener(
-                new ActionListener() {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        showAbout();
-                    }
-                }
-        );
+        if (!macPlatform_) {
+            menuItem = menu.add(new JMenuItem("About"));
+            menuItem.addActionListener(e -> showAbout());
+        }
 
         return menuBar;
     }
@@ -155,8 +127,8 @@ public class StyleBrowser {
 
             // Parse the style sheet
             Reader r = new FileReader(pathName);
-            CSSOMParser parser = new CSSOMParser();
             InputSource is = new InputSource(r);
+            CSSOMParser parser = new CSSOMParser(new SACParserCSS3());
             CSSStyleSheet stylesheet = parser.parseStyleSheet(is, null, null);
 
             // Create the tree to put the information in
@@ -213,10 +185,17 @@ public class StyleBrowser {
         JOptionPane.showMessageDialog(
                 null,
                 "DOM CSS Style Browser\n"
-                + "Copyright (C) 1999, 2014 David Schweinsberg\n"
-                + "http://cssparser.sourceforge.net/",
+                + "Copyright © 1999-2019 David Schweinsberg\n"
+                + "github.com/cssparser",
                 "About Style Browser",
                 JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    // Generic registration with the macOS application menu
+    private void registerForMacOSXEvents() {
+        Desktop desktop = Desktop.getDesktop();
+        desktop.setQuitHandler((e, response) -> System.exit(0));
+        desktop.setAboutHandler(e -> showAbout());
     }
 
     static public void main(String[] args) {
